@@ -16,6 +16,7 @@ from litgpt.config import configs
 import thunder
 
 from thunder.benchmarks import (
+    AdamaxBenchmark,
     BatchNormBenchmark,
     Benchmark,
     LitGPTBenchmark,
@@ -82,6 +83,11 @@ parametrize_compute_type_only_training = pytest.mark.parametrize(
     "compute_type,",
     (ComputeType.TRAINING_FORWARD, ComputeType.TRAINING_BACKWARD),
     ids=("forward", "backward"),
+)
+parametrize_compute_type_without_backward = pytest.mark.parametrize(
+    "compute_type,",
+    (ComputeType.INFERENCE, ComputeType.TRAINING_FORWARD),
+    ids=("inference", "forward"),
 )
 
 
@@ -972,3 +978,32 @@ def test_lora_linear(benchmark, executor, compute_type, implementation):
     fn = executor(b.fn())
 
     benchmark_for_compute_type(compute_type, benchmark, fn, args, kwargs)
+
+
+@pytest.mark.parametrize(
+    "executor",
+    [
+        thunderfx_executor,
+        torch_compile_executor,
+        torch_executor
+    ],
+    ids=["thunderfx", "inductor", "eager"],
+)
+@parametrize_compute_type_without_backward
+@pytest.mark.parametrize(
+    "params",
+    [(64, 64), (128, 64)],
+    ids=["64x64", "128x64"],
+)
+def test_optim_functional_adamax(benchmark, executor: None | Callable, params: Sequence[int], compute_type: ComputeType):
+    bench: Benchmark = AdamaxBenchmark(
+        params=params,
+        device="cuda:0",
+        dtype=thunder.float32,
+        requires_grad=is_requires_grad(compute_type),
+    )
+
+    jfn = executor(bench.fn())
+    args, kwargs = bench.make_batch()
+
+    benchmark_for_compute_type(compute_type, benchmark, jfn, args, kwargs)

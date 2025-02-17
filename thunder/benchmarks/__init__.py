@@ -3061,6 +3061,87 @@ class ResNet50Benchmark(Benchmark, metaclass=UserFacingBenchmarkMeta):
         return model
 
 
+class AdamaxBenchmark(Benchmark, metaclass=UserFacingBenchmarkMeta):
+    _args = (
+        BenchmarkArg(
+            name="params",
+            description="An iterable of parameters.",
+        ),
+        BenchmarkArg(
+            name="device",
+            description="A string representing the device to run on. Default is 'cuda'.",
+        ),
+        BenchmarkArg(
+            name="dtype",
+            description="The dtype of the tensors. Default is thunder.float32.",
+        ),
+        BenchmarkArg(
+            name="requires_grad",
+            description="Whether the input tensors require grad. Default is False.",
+        ),
+    )
+
+    @classmethod
+    @property
+    def name(cls) -> str:
+        return "litgpt-adamax"
+
+    @classmethod
+    @property
+    def description(cls) -> str:
+        return "LitGPT's 'Adamax' optimizer"
+
+    @classmethod
+    @property
+    def args(cls) -> tuple[BenchmarkArg, ...]:
+        return cls._args
+
+    def __init__(
+        self,
+        params: Sequence[int],
+        device: str = "cuda",
+        dtype: dtypes.dtype = thunder.float32,
+        requires_grad: bool = False,
+    ) -> None:
+        super().__init__()
+
+        self.params: Sequence[int] = params
+        self.device: str = device
+        self.dtype: dtypes.dtype = dtype
+        self.tdtype: torch.dtype = ltorch.to_torch_dtype(self.dtype)
+        self.requires_grad: bool = requires_grad
+
+        self.devices: list[str] = [device]
+
+    def make_batch(self) -> tuple[list, dict]:
+        pt = partial(make_tensor, device=self.device, dtype=self.tdtype, requires_grad=False)
+        params = [pt(shape) for shape in self.params]
+        grads = [pt(grad) for grad in self.params]
+        exp_avgs = [pt(ea) for ea in self.params]
+        exp_infs = [pt(ei) for ei in self.params]
+        state_steps = [torch.tensor(0, device="cpu", dtype=self.tdtype, requires_grad=False) for _ in self.params]
+        return (params, grads, exp_avgs, exp_infs, state_steps), {}
+
+    def fn(self) -> Callable:
+        @torch.no_grad()
+        def foo(params, grads, exp_avgs, exp_infs, state_steps):
+            return torch.optim._functional.adamax(
+                params,
+                grads,
+                exp_avgs,
+                exp_infs,
+                state_steps,
+                foreach=False,
+                eps=1e-8,
+                beta1=0.9,
+                beta2=0.999,
+                lr=0.002,
+                weight_decay=0.01,
+            )
+
+        return foo
+
+
 class TorchbenchBenchmark(Benchmark, metaclass=UserFacingBenchmarkMeta):
     _args = (
         BenchmarkArg(
