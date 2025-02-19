@@ -3084,12 +3084,12 @@ class AdamaxBenchmark(Benchmark, metaclass=UserFacingBenchmarkMeta):
     @classmethod
     @property
     def name(cls) -> str:
-        return "litgpt-adamax"
+        return "optim-functional-adamax"
 
     @classmethod
     @property
     def description(cls) -> str:
-        return "LitGPT's 'Adamax' optimizer"
+        return "Benchmark `torch.optim._functional.adamax` optimizer"
 
     @classmethod
     @property
@@ -3114,12 +3114,12 @@ class AdamaxBenchmark(Benchmark, metaclass=UserFacingBenchmarkMeta):
         self.devices: list[str] = [device]
 
     def make_batch(self) -> tuple[list, dict]:
-        pt = partial(make_tensor, device=self.device, dtype=self.tdtype, requires_grad=False)
+        pt = partial(make_tensor, device=self.device, dtype=self.tdtype, requires_grad=self.requires_grad)
         params = [pt(shape) for shape in self.params]
         grads = [pt(grad) for grad in self.params]
         exp_avgs = [pt(ea) for ea in self.params]
         exp_infs = [pt(ei) for ei in self.params]
-        state_steps = [torch.tensor(0, device="cpu", dtype=self.tdtype, requires_grad=False) for _ in self.params]
+        state_steps = [torch.tensor(0, device=self.device, dtype=self.tdtype, requires_grad=self.requires_grad) for _ in self.params]
         return (params, grads, exp_avgs, exp_infs, state_steps), {}
 
     def fn(self) -> Callable:

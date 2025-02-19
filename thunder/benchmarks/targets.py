@@ -1003,7 +1003,7 @@ def test_optim_functional_adamax(benchmark, executor: None | Callable, params: S
         requires_grad=is_requires_grad(compute_type),
     )
 
-    jfn = executor(bench.fn())
+    fn = executor(bench.fn())
     args, kwargs = bench.make_batch()
 
-    benchmark_for_compute_type(compute_type, benchmark, jfn, args, kwargs)
+    benchmark_for_compute_type(compute_type, benchmark, fn, args, kwargs)
