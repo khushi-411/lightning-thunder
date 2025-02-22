@@ -3064,6 +3064,10 @@ class ResNet50Benchmark(Benchmark, metaclass=UserFacingBenchmarkMeta):
 class AdamaxBenchmark(Benchmark, metaclass=UserFacingBenchmarkMeta):
     _args = (
         BenchmarkArg(
+            name="config",
+            description="Config to enable single tensor or multi-tensor (foreach).",
+        ),
+        BenchmarkArg(
             name="params",
             description="An iterable of parameters.",
         ),
@@ -3098,6 +3102,7 @@ class AdamaxBenchmark(Benchmark, metaclass=UserFacingBenchmarkMeta):
 
     def __init__(
         self,
+        config: tuple[str, bool],
         params: Sequence[int],
         device: str = "cuda",
         dtype: dtypes.dtype = thunder.float32,
@@ -3105,6 +3110,7 @@ class AdamaxBenchmark(Benchmark, metaclass=UserFacingBenchmarkMeta):
     ) -> None:
         super().__init__()
 
+        self.config: tuple[str, bool] = config
         self.params: Sequence[int] = params
         self.device: str = device
         self.dtype: dtypes.dtype = dtype
@@ -3117,21 +3123,22 @@ class AdamaxBenchmark(Benchmark, metaclass=UserFacingBenchmarkMeta):
         pt = partial(make_tensor, device=self.device, dtype=self.tdtype, requires_grad=self.requires_grad)
         params = [pt(shape) for shape in self.params]
         grads = [pt(grad) for grad in self.params]
-        exp_avgs = [pt(ea) for ea in self.params]
-        exp_infs = [pt(ei) for ei in self.params]
+        exp_avgs = [pt(ea, requires_grad=False) for ea in self.params]
+        exp_infs = [pt(ei, requires_grad=False) for ei in self.params]
         state_steps = [torch.tensor(0, device=self.device, dtype=self.tdtype, requires_grad=self.requires_grad) for _ in self.params]
         return (params, grads, exp_avgs, exp_infs, state_steps), {}
 
     def fn(self) -> Callable:
         @torch.no_grad()
         def foo(params, grads, exp_avgs, exp_infs, state_steps):
+            name, foreach = self.config
             return torch.optim._functional.adamax(
                 params,
                 grads,
                 exp_avgs,
                 exp_infs,
                 state_steps,
-                foreach=False,
+                foreach=foreach,
                 eps=1e-8,
                 beta1=0.9,
                 beta2=0.999,

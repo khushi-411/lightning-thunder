@@ -84,10 +84,10 @@ parametrize_compute_type_only_training = pytest.mark.parametrize(
     (ComputeType.TRAINING_FORWARD, ComputeType.TRAINING_BACKWARD),
     ids=("forward", "backward"),
 )
-parametrize_compute_type_without_backward = pytest.mark.parametrize(
+parametrize_compute_type_only_inference = pytest.mark.parametrize(
     "compute_type,",
-    (ComputeType.INFERENCE, ComputeType.TRAINING_FORWARD),
-    ids=("inference", "forward"),
+    (ComputeType.INFERENCE,),
+    ids=("inference",),
 )
 
 
@@ -989,14 +989,23 @@ def test_lora_linear(benchmark, executor, compute_type, implementation):
     ],
     ids=["thunderfx", "inductor", "eager"],
 )
-@parametrize_compute_type_without_backward
+@parametrize_compute_type_only_inference
 @pytest.mark.parametrize(
     "params",
     [(64, 64), (128, 64)],
     ids=["64x64", "128x64"],
 )
-def test_optim_functional_adamax(benchmark, executor: None | Callable, params: Sequence[int], compute_type: ComputeType):
+@pytest.mark.parametrize(
+    "config,",
+    [
+        ("single_tensor", False),
+        ("multi_tensor", True),
+    ],
+    ids=["single_tensor", "multi_tensor(foreach)"],
+)
+def test_optim_functional_adamax(benchmark, executor: None | Callable, config: tuple[str, bool], params: Sequence[int], compute_type: ComputeType):
     bench: Benchmark = AdamaxBenchmark(
+        config=config,
         params=params,
         device="cuda:0",
         dtype=thunder.float32,
